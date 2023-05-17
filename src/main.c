@@ -64,41 +64,36 @@
 
 int main(void) {
 
+    int contador = 0;
 
-
-    int divisor = 0;
-
-    board_t board = BoardCreate();
+    board_io_t my_board = BoardCreate();
 
     while (true) {
-        if (DigitalInputState(board->tecla_1)) {
-            DigitalOutPutActivate(board->led_azul);
+        if (DigitalInputState(my_board->button_1)) {
+            DigitalOutPutActivate(my_board->blue_led);
         } else {
-            DigitalOutPutDesactivate(board->led_azul);
+            DigitalOutPutDesactivate(my_board->blue_led);
         }
 
-        if (DigitalInputhasActivated(board->tecla_2)) {
-            DigitalOutPutToggle(board->led_amarillo);
+        if (DigitalInputhasActivated(my_board->button_2)) {
+            DigitalOutPutToggle(my_board->yellow_led);
         }
         
 
-        if (DigitalInputState(board->tecla_3)) {
-            DigitalOutPutActivate(board->led_rojo);
+        if (DigitalInputState(my_board->button_3)) {
+            DigitalOutPutActivate(my_board->red_led);
         }
-        if (DigitalInputState(board->tecla_4)) {
-            DigitalOutPutDesactivate(board->led_rojo);
-        }
-
-        divisor++;
-        if (divisor == 100) {
-            divisor = 0;
-
-            if (DigitalInputState(board->tecla_4)) {//lo pongo asi porque me molesta el que el led parpadee todo el tiempo
-                DigitalOutPutToggle(board->led_verde);
-            } else {DigitalOutPutDesactivate(board->led_verde);}
+        if (DigitalInputState(my_board->button_4)) {
+            DigitalOutPutDesactivate(my_board->red_led);
         }
 
-        for (int index = 0; index < 1000; index++) {
+        contador++;
+        if (contador == 100) {
+            contador = 0;
+            DigitalOutPutToggle(my_board->green_led);
+        }
+
+        for (int i = 0; i < 1000; i++) {
             for (int delay = 0; delay < 25; delay++ ) {
                 __asm("NOP");
             }
