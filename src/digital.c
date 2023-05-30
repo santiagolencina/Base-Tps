@@ -15,7 +15,7 @@ typedef struct digital_input_s{
     uint8_t invertir;
     bool last_state;
     bool allocated;
-} *digital_input_t;
+} *digital_input_t; 
 
 
 
@@ -27,9 +27,9 @@ digital_output_t DigitalOutputAllocate(void);
 digital_output_t DigitalOutputAllocate(void){
     digital_output_t output =NULL;
 
-    static struct digital_output_s instances[NUMERO_GPIO_OUT]={0};
+    static struct digital_output_s instances[numero_salidas]={0};
 
-    for(int index=0;index<NUMERO_GPIO_OUT;index++){
+    for(int index=0;index<numero_salidas;index++){
         if(!instances[index].allocated){
             instances[index].allocated=true;
             output=&instances[index];
@@ -43,9 +43,9 @@ return output;
 digital_input_t DigitalinputAllocate(void){
     digital_input_t input =NULL;
 
-    static struct digital_input_s instances[NUMERO_GPIO_INPUT]={0};
+    static struct digital_input_s instances[numero_entradas]={0};
 
-    for(int index=0;index<NUMERO_GPIO_INPUT;index++){
+    for(int index=0;index<numero_entradas;index++){
         if(!instances[index].allocated){
             instances[index].allocated=true;
             input=&instances[index];

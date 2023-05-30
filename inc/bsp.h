@@ -1,84 +1,35 @@
 #include "chip.h"
+#include "pantalla.h"
 #include "digital.h"
 #include <stdbool.h>
+#include "poncho.h"
 #include <stdint.h>
 
-#define LED_RED_PORT 2
-#define LED_RED_PIN 0
-#define LED_RED_FUNC SCU_MODE_FUNC4
-#define LED_RED_GPIO 5
-#define LED_RED_BIT 0
+typedef struct board_s{
 
-#define LED_GREEN_PORT 2
-#define LED_GREEN_PIN 1
-#define LED_GREEN_FUNC SCU_MODE_FUNC4
-#define LED_GREEN_GPIO 5
-#define LED_GREEN_BIT 1
+    digital_output_t Seg_A,Seg_B,Seg_C,Seg_D,Seg_E,Seg_F,Seg_G;
 
-#define LED_BLUE_PORT 2
-#define LED_BLUE_PIN 2
-#define LED_BLUE_FUNC SCU_MODE_FUNC4
-#define LED_BLUE_GPIO 5
-#define LED_BLUE_BIT 2
+    digital_output_t Punto;
 
-#define LED_1_PORT 2
-#define LED_1_PIN 10
-#define LED_1_FUNC SCU_MODE_FUNC0
-#define LED_1_GPIO 0
-#define LED_1_BIT 14
+    digital_output_t Dig_1,Dig_2,Dig_3,Dig_4;
 
-#define LED_2_PORT 2
-#define LED_2_PIN 11
-#define LED_2_FUNC SCU_MODE_FUNC0
-#define LED_2_GPIO 1
-#define LED_2_BIT 11
+    digital_input_t Aceptar,Cancelar,F1,F2,F3,F4;
 
-#define LED_3_PORT 2
-#define LED_3_PIN 12
-#define LED_3_FUNC SCU_MODE_FUNC0
-#define LED_3_GPIO 1
-#define LED_3_BIT 12
+    display_t display;
 
-#define BUTTON_1_PORT 1
-#define BUTTON_1_PIN 0
-#define BUTTON_1_FUNC SCU_MODE_FUNC0
-#define BUTTON_1_GPIO 0
-#define BUTTON_1_BIT 4
+    digital_output_t led_azul;
+    digital_output_t led_rojo;
+    digital_output_t led_amarillo;
+    digital_output_t led_verde;
+    digital_output_t led_rojo_rgb;
+    digital_output_t led_verde_rgb;
 
-#define BUTTON_2_PORT 1
-#define BUTTON_2_PIN 1
-#define BUTTON_2_FUNC SCU_MODE_FUNC0
-#define BUTTON_2_GPIO 0
-#define BUTTON_2_BIT 8
-
-#define BUTTON_3_PORT 1
-#define BUTTON_3_PIN 2
-#define BUTTON_3_FUNC SCU_MODE_FUNC0
-#define BUTTON_3_GPIO 0
-#define BUTTON_3_BIT 9
-
-#define BUTTON_4_PORT 1
-#define BUTTON_4_PIN 6
-#define BUTTON_4_FUNC SCU_MODE_FUNC0
-#define BUTTON_4_GPIO 1
-#define BUTTON_4_BIT 9
+    digital_input_t tecla_1;
+    digital_input_t tecla_2;
+    digital_input_t tecla_3;
+    digital_input_t tecla_4;
 
 
-/// @brief Input and Output to be used
-typedef struct board_io_s{
+}const* const board_t;
 
-    digital_output_t blue_led;
-    digital_output_t red_led;
-    digital_output_t yellow_led;
-    digital_output_t green_led;
-
-    digital_input_t button_1;
-    digital_input_t button_2;
-    digital_input_t button_3;
-    digital_input_t button_4;
-
-}const* const board_io_t;
-
-
-/// @brief Create a board
-board_io_t BoardCreate(void);
+board_t BoardCreate(void);

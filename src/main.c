@@ -42,6 +42,7 @@
 
 #include "chip.h"
 #include "digital.h"
+#include "poncho.h"
 #include "bsp.h"
 #include <stdbool.h>
 
@@ -53,6 +54,7 @@
 /* === Private variable declarations =========================================================== */
 
 /* === Private function declarations =========================================================== */
+void delay(void);
 
 /* === Public variable definitions ============================================================= */
 
@@ -64,42 +66,47 @@
 
 int main(void) {
 
-    int contador = 0;
 
-    board_io_t my_board = BoardCreate();
+    static volatile uint8_t uni=0,dec=0,cen=0,mil=0;
+    int base=0;
+    
 
+    board_t board = BoardCreate();
+    DisplayWriteBCD(board->display,(uint8_t[]){0,0,0,0},4);
+    
     while (true) {
-        if (DigitalInputState(my_board->button_1)) {
-            DigitalOutPutActivate(my_board->blue_led);
-        } else {
-            DigitalOutPutDesactivate(my_board->blue_led);
-        }
 
-        if (DigitalInputhasActivated(my_board->button_2)) {
-            DigitalOutPutToggle(my_board->yellow_led);
-        }
+    DisplayRefresh(board->display);
+    delay();
+
+    if(base>=100){
+
+        uni++;
+        base=0;
+        if(uni>9) {uni=0; dec++;}
+        if(dec>5) {dec=0; cen++;}
+        if(cen>9) {cen=0; mil++;}
+        if(mil>5) {mil=0;}
+
+        DisplayWriteBCD(board->display,(uint8_t[]){uni,dec,cen,mil},4);
+    }
+
+    base++;
+
         
+    }
+}
 
-        if (DigitalInputState(my_board->button_3)) {
-            DigitalOutPutActivate(my_board->red_led);
-        }
-        if (DigitalInputState(my_board->button_4)) {
-            DigitalOutPutDesactivate(my_board->red_led);
-        }
+void delay(){
+    for(int i=0;i<1000;i++) {
 
-        contador++;
-        if (contador == 100) {
-            contador = 0;
-            DigitalOutPutToggle(my_board->green_led);
-        }
-
-        for (int i = 0; i < 1000; i++) {
-            for (int delay = 0; delay < 25; delay++ ) {
-                __asm("NOP");
-            }
+        for(int o=0;o<1;o++){
+            __asm("NOP");
         }
     }
 }
+
+
 
 /* === End of documentation ==================================================================== */
 
