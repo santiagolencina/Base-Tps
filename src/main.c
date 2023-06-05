@@ -1,113 +1,51 @@
-/* Copyright 2022, Laboratorio de Microprocesadores
- * Facultad de Ciencias Exactas y Tecnología
- * Universidad Nacional de Tucuman
- * http://www.microprocesadores.unt.edu.ar/
- * Copyright 2022, Esteban Volentini <evolentini@herrera.unt.edu.ar >
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. Neither the name of the copyright holder nor the names of its
- *    contributors may be used to endorse or promote products derived from this
- *    software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS  "
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;  BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- */
+#include <stdio.h>
+#include "calculadora.h"
+ 
+int suma(int a, int b) {
+    return a + b;
+}
 
-/** \brief Simple sample of use LPC HAL gpio functions
- **
- ** \addtogroup samples Sample projects
- ** \brief Sample projects to use as a starting point
- ** @{ */
+int resta(int a, int b) {
+    return a - b;
+}
 
-/* === Headers files inclusions =============================================================== */
+int multiplicacion(int a, int b) {
+    return a * b;
+}
 
-#include "chip.h"
-#include "digital.h"
-#include "poncho.h"
-#include "bsp.h"
-#include <stdbool.h>
-
-
-/* === Macros definitions ====================================================================== */
-
-/* === Private data type declarations ========================================================== */
-
-/* === Private variable declarations =========================================================== */
-
-/* === Private function declarations =========================================================== */
-void delay(void);
-
-/* === Public variable definitions ============================================================= */
-
-/* === Private variable definitions ============================================================ */
-
-/* === Private function implementation ========================================================= */
-
-/* === Public function implementation ========================================================= */
-
-int main(void) {
-
-
-    static volatile uint8_t uni=0,dec=0,cen=0,mil=0;
-    int base=0;
-    
-
-    board_t board = BoardCreate();
-    DisplayWriteBCD(board->display,(uint8_t[]){0,0,0,0},4);
-    
-    while (true) {
-
-    DisplayRefresh(board->display);
-    delay();
-
-    if(base>=100){
-
-        uni++;
-        base=0;
-        if(uni>9) {uni=0; dec++;}
-        if(dec>5) {dec=0; cen++;}
-        if(cen>9) {cen=0; mil++;}
-        if(mil>5) {mil=0;}
-
-        DisplayWriteBCD(board->display,(uint8_t[]){uni,dec,cen,mil},4);
-    }
-
-    base++;
-
-        
+int division(int a, int b) {
+    if (b != 0) {
+        return (float)a / b;
+    } else {
+        printf("Error: No se puede dividir entre cero.\n");
+        return 0;
     }
 }
 
-void delay(){
-    for(int i=0;i<1000;i++) {
 
-        for(int o=0;o<1;o++){
-            __asm("NOP");
+int main() {
+    int resultado;
+    char cadena[20];
+
+    calculadora_t calculadora = CrearCalculadora();
+    resultado=0;
+    AgregarOperacion(calculadora,'+',suma);
+    AgregarOperacion(calculadora,'-',resta);
+    AgregarOperacion(calculadora,'*',multiplicacion);
+    AgregarOperacion(calculadora,'/',division);//devuelve un numero entero, asi que si divido 2/4 por ej devolvera 0
+    
+    while(1){ 
+
+        printf("Formato (Numero 1 (+-*/) Numero 2)\n\nSi desea finalizar el programa escriba 'Salir'\n\nIntroduce la operación:");
+        scanf("%s", cadena);
+
+        if (strcmp(cadena, "Salir") == 0) {
+            printf("Programa Finalizado.\n");
+            break;
         }
+
+        resultado=Calcular(calculadora,cadena);
+        printf("resultado %i\r\n\n",resultado);
     }
+    return 0;
 }
-
-
-
-/* === End of documentation ==================================================================== */
-
-/** @} End of module definition for doxygen */
