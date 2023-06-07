@@ -67,33 +67,38 @@ void delay(void);
 int main(void) {
 
 
-    static volatile uint8_t uni=0,dec=0,cen=0,mil=0;
-    int base=0;
-    
+    static volatile uint8_t unidad=0,decena=0,centena=0,unidad_mil=0;
+    int contador=50;
+    int n_displays=4;
+    board_t my_board = BoardCreate();
 
-    board_t board = BoardCreate();
-    DisplayWriteBCD(board->display,(uint8_t[]){0,0,0,0},4);
+    DisplayWriteBCD(my_board->display,(uint8_t[]){unidad,unidad+1,unidad+2,unidad+3},n_displays);
     
     while (true) {
 
-    DisplayRefresh(board->display);
+    DisplayRefresh(my_board->display);
     delay();
 
-    if(base>=100){
+    if(contador<=0){
+        contador=50;
 
-        uni++;
-        base=0;
-        if(uni>9) {uni=0; dec++;}
-        if(dec>5) {dec=0; cen++;}
-        if(cen>9) {cen=0; mil++;}
-        if(mil>5) {mil=0;}
+        if(unidad<9)unidad++;
+        else unidad=0;
+        
+        if(decena<9)decena++;
+        else decena=0;
 
-        DisplayWriteBCD(board->display,(uint8_t[]){uni,dec,cen,mil},4);
+        if(centena<9)centena++;
+        else centena=0;
+
+        if(unidad_mil<9)unidad_mil++;
+        else unidad_mil=0;
+        
+        DisplayWriteBCD(my_board->display,(uint8_t[]){unidad,decena,centena,unidad_mil},n_displays);
     }
 
-    base++;
-
-        
+    contador--;
+          
     }
 }
 
