@@ -73,3 +73,19 @@ void DisplayRefresh(display_t display){
     }
  
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

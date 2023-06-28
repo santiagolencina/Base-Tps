@@ -5,7 +5,6 @@
 #include "poncho.h"
 #include <stdint.h>
 
-/// @brief definicion de entradas y salidas a utilizar
 typedef struct board_s{
 
     digital_output_t Seg_A,Seg_B,Seg_C,Seg_D,Seg_E,Seg_F,Seg_G;
@@ -15,7 +14,7 @@ typedef struct board_s{
     digital_output_t Dig_1,Dig_2,Dig_3,Dig_4;
 
     digital_input_t Aceptar,Cancelar,F1,F2,F3,F4;
-    
+
     display_t display;
 
     digital_output_t led_azul;
@@ -33,6 +32,4 @@ typedef struct board_s{
 
 }const* const board_t;
 
-
-/// @brief Crear una board
 board_t BoardCreate(void);
