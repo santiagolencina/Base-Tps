@@ -2,7 +2,7 @@
  * Facultad de Ciencias Exactas y Tecnología
  * Universidad Nacional de Tucuman
  * http://www.microprocesadores.unt.edu.ar/
- * Copyright 2022, Esteban Volentini <evolentini@herrera.unt.edu.ar >
+ * Copyright 2022, Lencina Martinez Luis Santiago
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,12 +40,11 @@
 
 /* === Headers files inclusions =============================================================== */
 
+#include "bsp.h"
 #include "chip.h"
 #include "digital.h"
 #include "poncho.h"
-#include "bsp.h"
 #include <stdbool.h>
-
 
 /* === Macros definitions ====================================================================== */
 
@@ -66,52 +65,56 @@ void delay(void);
 
 int main(void) {
 
-
-    static volatile uint8_t unidad=0,decena=0,centena=0,unidad_mil=0;
-    int contador=50;
-    int n_displays=4;
+    static volatile uint8_t unidad = 0, decena = 0, centena = 0, unidad_mil = 0;
+    int contador = 20;
+    int n_displays = 4;
     board_t my_board = BoardCreate();
 
-    DisplayWriteBCD(my_board->display,(uint8_t[]){unidad,unidad+1,unidad+2,unidad+3},n_displays);
-    
+    DisplayWriteBCD(my_board->display, (uint8_t[]){unidad, unidad + 1, unidad + 2, unidad + 3}, n_displays);
+
     while (true) {
 
-    DisplayRefresh(my_board->display);
-    delay();
+        DisplayRefresh(my_board->display);
+        delay();
 
-    if(contador<=0){
-        contador=50;
+        if (contador <= 0) {
+            contador = 20;
 
-        if(unidad<9)unidad++;
-        else unidad=0;
-        
-        if(decena<9)decena++;
-        else decena=0;
+            if (unidad < 9)
+                unidad++;
+            else {
+                unidad = 0;
+                if (decena < 9)
+                    decena++;
+                else {
+                    decena = 0;
+                    if (centena < 9)
+                        centena++;
+                    else {
+                        centena = 0;
+                        if (unidad_mil < 9)
+                            unidad_mil++;
+                        else
+                            unidad_mil = 0;
+                    }
+                }
+            }
 
-        if(centena<9)centena++;
-        else centena=0;
+            DisplayWriteBCD(my_board->display, (uint8_t[]){unidad, decena, centena, unidad_mil}, n_displays);
+        }
 
-        if(unidad_mil<9)unidad_mil++;
-        else unidad_mil=0;
-        
-        DisplayWriteBCD(my_board->display,(uint8_t[]){unidad,decena,centena,unidad_mil},n_displays);
-    }
-
-    contador--;
-          
+        contador--;
     }
 }
 
-void delay(){
-    for(int i=0;i<1000;i++) {
+void delay() {
+    for (int i = 0; i < 1000; i++) {
 
-        for(int o=0;o<1;o++){
+        for (int o = 0; o < 1; o++) {
             __asm("NOP");
         }
     }
 }
-
-
 
 /* === End of documentation ==================================================================== */
 
