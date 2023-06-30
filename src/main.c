@@ -44,7 +44,8 @@
 #include "digital.h"
 #include "poncho.h"
 #include "bsp.h"
-#include "definiciones.h"
+#include "my_constants.h"
+#include "my_watch.h"
 #include <stdbool.h>
 #include "my_watch.h"
 
@@ -55,14 +56,21 @@
 /* === Private variable declarations =========================================================== */
 
 /* === Private function declarations =========================================================== */
-void delay(void);
+void blink_display(uint8_t _dot);
+bool F1_pressed_3s (void);
 
 /* === Public variable definitions ============================================================= */
 
 const struct board_s* board;
-struct my_watch_s* reloj;
-uint8_t hora[6],alarma[6];
-uint8_t estado=0;
+struct my_watch_s* watch;
+uint8_t watch_time[6];
+uint8_t state=init;
+unsigned int time=0;
+bool inc_time=false;
+unsigned int pressed_timer=F1_TIMER;
+unsigned int blink_timer=BLINK_TIME_PERIOD;
+uint8_t dot=0;
+
 /* === Private variable definitions ============================================================ */
 
 /* === Private function implementation ========================================================= */
@@ -73,24 +81,113 @@ int main(void) {
 
     SysTick_Init(1000);
     board = BoardCreate();
-    reloj=CreateWatch(1000);
-
-    
-    
+    watch=CreateWatch(1000);
     
     while (true) {
+    
+        switch (state)
+        {
+        case init:
 
+            if(inc_time){
+                inc_time=false;
+                blink_display(DOT_2_ON);    
+                if(F1_pressed_3s()) state = set_up_hour;
+            }            
+
+            break;
+
+        case set_up_hour:
+
+            if(inc_time){
+                inc_time=false;
+                blink_display(DOT_0_ON);    
+                if(F1_pressed_3s()) state = set_up_minute;
+            } 
+
+            break;
+
+        case set_up_minute:
+
+            if(inc_time){
+                inc_time=false;
+                blink_display(DOT_1_ON);    
+                if(F1_pressed_3s()) state = init;
+            } 
+
+            break;
+
+        case show_watch_time:
+
+            break;
+
+        case set_up_alarm_hour:
+
+            break;
+
+        case set_up_alarm_minute:
         
-        //Consideracion: quiero que la alarma por defecto este activada, este configurada o no
-        
+            break;
+
+        default:
+            break;
+        }
+
     }
 }
 
 
 
+
+
+
+
 void SysTick_Handler(void){
 
-    static unsigned int tiempo=0,tiempo1=0;
+    inc_time=true;
+
+    if(time<30000) time++;
+    else time=0;
+ 
+    DisplayWriteBCD(board->display,(uint8_t[]){watch_time[3],watch_time[2],watch_time[1],watch_time[0]},4,dot);
+    DisplayRefresh(board->display);   
+    RefreshTime(watch);
+}
+
+
+
+
+void blink_display(uint8_t _dot){
+
+    if(blink_timer>0) blink_timer--;
+    else blink_timer = BLINK_TIME_PERIOD;
+
+    if(blink_timer>=BLINK_TIME_PERIOD/2){ 
+        GetTime(watch,watch_time,sizeof(watch_time)); 
+        dot=_dot;
+    }else{  
+        for(int i=0; i<4; i++)
+            watch_time[i] = ONE_DISPLAY_OFF;
+        dot=ALL_DOT_OFF;
+    }
+
+}
+
+bool F1_pressed_3s (void){
+
+    bool flag=false;
+
+    if(DigitalInputState(board->F1)) pressed_timer--;
+    else pressed_timer = F1_TIMER;
+
+    if(pressed_timer==0)     flag=true;
+    else                    flag=false;
+
+    return flag; 
+
+}
+
+/*
     static unsigned int temporizador=0;
     static unsigned int delay;
     static unsigned int caso=0;
@@ -106,34 +203,6 @@ void SysTick_Handler(void){
 
     case inicio:
         variable_general=0;
-        GetTime(reloj, hora, 6);
-        
-        temporizador++;
-
-        if(temporizador<1000){
-        DisplayWriteBCD(board->display,(uint8_t[]){hora[3],hora[2],hora[1],hora[0]},4,2); 
-        }
-        else{
-        DisplayWriteBCD(board->display,(uint8_t[]){SEG_OFF,SEG_OFF,SEG_OFF,SEG_OFF},4,PUNTOS_OFF);
-        }
-        if (temporizador>=2000) temporizador=0;
-
-
-        if(DigitalInputState(board->F1)) tiempo++;
-        else tiempo=0;
-        if(tiempo>=3000) {
-            estado=ajuste_minutos;
-            tiempo=0;
-        }
-
-        if(DigitalInputState(board->F2)) tiempo1++;
-        else tiempo1=0;
-        if(tiempo1>=3000) {
-            estado=configurar_alarma_minutos;
-            GetAlarmTime(reloj,hora,6);
-            variable_general=hora[2]*10+hora[3];
-            tiempo1=0;
-        }
 
         break;
 
@@ -277,7 +346,7 @@ void SysTick_Handler(void){
         else {variable_general=2;
             SnoozeAlarmDia(reloj);
         }
-        */
+        //
 
         if(temporizador<1000){
         DisplayWriteBCD(board->display,(uint8_t[]){hora[3],hora[2],hora[1],hora[0]},4,variable_general);  
@@ -313,7 +382,7 @@ void SysTick_Handler(void){
                 SnoozeAlarmDia(reloj);
                 while(DigitalInputState(board->Cancelar))__asm("NOP");
             } 
-            */
+            //
             if(DigitalInputState(board->Aceptar)){
                 DigitalOutPutDesactivate(board->led_amarillo);
                 SnoozeAlarm(reloj,10);
@@ -469,10 +538,11 @@ void SysTick_Handler(void){
         break;
     }
 
-    RefreshTime(reloj);
+    
     DisplayRefresh(board->display);
 
 }
+*/
 
 /* === End of documentation ==================================================================== */
 
