@@ -33,3 +33,4 @@ typedef struct board_s{
 }const* const board_t;
 
 board_t BoardCreate(void);
+void SysTick_Init(uint16_t ticks);

@@ -113,6 +113,11 @@ bool AlarmStatus(my_watch_t watch);
 /// @return
 bool SnoozeAlarm(my_watch_t watch, uint8_t snooze);
 
+/// @brief Funcion que pospone alarma un dia
+/// @param my_watch objeto de tipo reloj.
+/// @return 
+bool SnoozeAlarm_24hs(my_watch_t my_watch);
+
 /// @brief Funcion que indica que la alarma esta sonando.
 /// @param watch Objeto de tipo reloj
 /// @return

@@ -27,7 +27,7 @@ typedef struct display_driver_s{
  
 display_t DisplayCreate(uint8_t digits,display_driver_t driver);
 
-void DisplayWriteBCD(display_t display,uint8_t *number,uint8_t size);
+void DisplayWriteBCD(display_t display,uint8_t *number,uint8_t size,uint8_t punto);
 
 void DisplayRefresh(display_t display);
 

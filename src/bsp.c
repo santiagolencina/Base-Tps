@@ -125,19 +125,27 @@ board_t BoardCreate(void){
     return &board;
 }
 
-    void ScreenTurnOff(void){
-        Chip_GPIO_ClearValue(LPC_GPIO_PORT,DIGITS_GPIO,DIGITS_MASK);
-        Chip_GPIO_ClearValue(LPC_GPIO_PORT,SEGMENTS_MASK,SEGMENTS_MASK);
-        Chip_GPIO_SetPinState(LPC_GPIO_PORT,SEGMENT_P_GPIO,SEGMENT_P_BIT,false);
-    }
+void ScreenTurnOff(void){
+    Chip_GPIO_ClearValue(LPC_GPIO_PORT,DIGITS_GPIO,DIGITS_MASK);
+    Chip_GPIO_ClearValue(LPC_GPIO_PORT,SEGMENTS_MASK,SEGMENTS_MASK);
+    Chip_GPIO_SetPinState(LPC_GPIO_PORT,SEGMENT_P_GPIO,SEGMENT_P_BIT,false);
+}
 
-    void SegmentsTurnOn(uint8_t segments){
-        Chip_GPIO_ClearValue(LPC_GPIO_PORT,SEGMENTS_GPIO,SEGMENTS_MASK);
-        Chip_GPIO_SetValue(LPC_GPIO_PORT,SEGMENTS_GPIO,(segments) & SEGMENTS_MASK);
-        Chip_GPIO_SetPinState(LPC_GPIO_PORT,SEGMENT_P_GPIO,SEGMENT_P_BIT, segments & SEGMENT_P);
-    }
+void SegmentsTurnOn(uint8_t segments){
+    Chip_GPIO_ClearValue(LPC_GPIO_PORT,SEGMENTS_GPIO,SEGMENTS_MASK);
+    Chip_GPIO_SetValue(LPC_GPIO_PORT,SEGMENTS_GPIO,(segments) & SEGMENTS_MASK);
+    Chip_GPIO_SetPinState(LPC_GPIO_PORT,SEGMENT_P_GPIO,SEGMENT_P_BIT, segments & SEGMENT_P);
+}
 
-    void DigitTurnOn(uint8_t digit){
-        Chip_GPIO_SetValue(LPC_GPIO_PORT,DIGITS_GPIO,(1<<(digit)) & DIGITS_MASK);
-    
-    }
+void DigitTurnOn(uint8_t digit){
+    Chip_GPIO_SetValue(LPC_GPIO_PORT,DIGITS_GPIO,(1<<(digit)) & DIGITS_MASK);
+
+}
+
+void SysTick_Init(uint16_t ticks){
+    __asm volatile ("cpsid i");
+    SystemCoreClockUpdate();
+    SysTick_Config(SystemCoreClock/ticks);
+    //NVIC_SetPriotity(SysTick_IRQn,(1<<__NVIC_PRIO_BITS)-1);
+    __asm volatile ("cpsie i");
+}

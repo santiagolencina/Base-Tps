@@ -56,20 +56,75 @@
 /* === Private variable declarations =========================================================== */
 
 /* === Private function declarations =========================================================== */
-void blink_display(uint8_t _dot);
-bool F1_pressed_3s (void);
+
+
+/// @brief Función que genera el efecto visual de parpadeo
+/// @param _dot variable que indica que punto decimal sera el que se encienda
+/// @param displays_off variable que indica que conjunto de display 7seg se apagaran
+/// @param blink_timer_f variable que setea periodo de tiempo de parpadeo
+void blink_display(uint8_t _dot, uint8_t displays_off, unsigned int blink_timer_f);
+
+/// @brief Función que testea pulsador 
+/// @param button recibe pulsador a testear de la placa
+/// @param timer variable que indica por cuanto tiempo se debe mantener pulsado "button" para devolver "true"
+/// @param button_test constante que filtra el pulsador se debe testear
+/// @return "true" -> se mantuvo pulsado por el tiempo indicado , "false" -> no se pulso correctamente 
+bool button_test (digital_input_t button , unsigned int timer, unsigned int button_test);
+
+/// @brief Función que maneja valor a setear en los display al momento de la configuracion del tiempo
+/// @param count_state indica si se debe incrementar o decrementar la cuenta
+/// @param display_select indica que conjunto de displays 7seg se esta configurando (minutos u horas)
+void decimal_to_seg (int count_state, int display_select);
+
+/// @brief Función que copia tiempo del reloj en variable auxiliar para luego pegarla nuevamente en variable principal, esto se hace al momento de generar el efecto de parpadeo 
+/// @param copy_paste "true" -> copy, "false" -> paste
+void copy_paste_watch_time (bool copy_paste);
+
+
 
 /* === Public variable definitions ============================================================= */
 
+
+
 const struct board_s* board;
 struct my_watch_s* watch;
-uint8_t watch_time[6];
+
+/// @brief variable principal de tiempo
+uint8_t watch_time [6];              
+/// @brief variable auxiliar de tiempo que contiene el valor del nuevo tiempo al momento de la configuración
+uint8_t watch_time_new [6]; 
+/// @brief variable auxiliar donde se guarda tiempo al momento de configurar (usado para guardar "watch_time_new" al momento de generar efecto visual)
+uint8_t watch_time_saved [6];
+/// @brief variable principal de tiempo (alarma)
+uint8_t watch_time_alarm [6];
+/// @brief variable de maquina de estado
 uint8_t state=init;
+
+/// @brief contador utilizado para determinar tiempo de inactividad
 unsigned int time=0;
-bool inc_time=false;
-unsigned int pressed_timer=F1_TIMER;
+/// @brief variable auxiliar que controla si se pulsan los pulsadores por el timepo previamente especificado
+unsigned int pressed_timer=0;
+/// @brief variable auxiliar que controla tiempo de parpadeo 
 unsigned int blink_timer=BLINK_TIME_PERIOD;
+/// @brief indica si se debe incrementar o decrementar la cuenta al momento de configurar la hora (alarma o reloj)
+unsigned int count_status=0;
+/// @brief variable de tipo decimal que lleva la cuenta de el tiempo a setear, que luego se traduce a cada uno de los display 7seg
+signed int reg_time=0;
+
+/// @brief "[F1,F2,F3,F4,Aceptar,Cancelar]"arreglo  que indica que pulsadores se pueden testear, al momento de empezar a testear uno en particular se ponen en 0 los demas, al finalizar el testeo se vuelve al valor de inicialización.
+bool testing_buttons[]={1,1,1,1,1,1}; 
+/// @brief indica que se esta configurando el tiempo
+bool setting_up_flag=true;
+/// @brief indica que se ejecuto una vez la rutina de interrupción
+bool inc_time=false;
+/// @brief watch dog timer que indica inactividad en los pulsadores al momento de configurar el tiempo
+bool wdt=false;
+/// @brief indica que un pulsado se comenzo a testear
+bool new_button_tested=true;
+/// @brief indica que punto debe ser encendido
 uint8_t dot=0;
+
+
 
 /* === Private variable definitions ============================================================ */
 
@@ -77,472 +132,345 @@ uint8_t dot=0;
 
 /* === Public function implementation ========================================================= */
 
+
+
 int main(void) {
 
     SysTick_Init(1000);
     board = BoardCreate();
-    watch=CreateWatch(1000);
-    
+    watch=CreateWatch(10);  //1000 es el valor para que la base de tiempo sea de 1 segundo
+
+    watch_time[0]= 1;
+    watch_time[1]= 2;
+    watch_time[2]= 0;
+    watch_time[3]= 0; 
+
+    watch_time_alarm[0]= 1;
+    watch_time_alarm[1]= 2;
+    watch_time_alarm[2]= 1;
+    watch_time_alarm[3]= 0; 
+
+    SetUpTime(watch,watch_time,sizeof(watch_time));                     //watch time = 12:00
+    SetUpAlarm(watch,watch_time_alarm,sizeof(watch_time_alarm));        //watch time alar = 12:10
+    GetTime(watch,watch_time_new,sizeof(watch_time_new));               //watch time new = 12:00
+    GetTime(watch,watch_time_saved,sizeof(watch_time_saved));           //watch time saved = 12:00
+
+
     while (true) {
-    
-        switch (state)
-        {
-        case init:
 
-            if(inc_time){
-                inc_time=false;
-                blink_display(DOT_2_ON);    
-                if(F1_pressed_3s()) state = set_up_hour;
-            }            
+        if(inc_time){   
+            
+            inc_time=false;
 
-            break;
-
-        case set_up_hour:
-
-            if(inc_time){
-                inc_time=false;
-                blink_display(DOT_0_ON);    
-                if(F1_pressed_3s()) state = set_up_minute;
+            if (AlarmStatus(watch)){
+                if(AlarmRinging(watch)) DigitalOutPutActivate(board->led_azul);
+                else                    DigitalOutPutDesactivate(board->led_azul);                    
             } 
+            else{
+                DigitalOutPutDesactivate(board->led_azul);
+            }                        
 
-            break;
+            switch (state)
+            {
+            case init:
+                    EnableAlarm(watch, false);
+                    blink_display(DOT_2_ON,ALL_DISPLAY_OFF,BLINK_TIME_PERIOD);               // borra y escribe watch time new
 
-        case set_up_minute:
+                    if(testing_buttons[0]==1) if(button_test(board->F1,F1_TIMER,F1_)) {               
+                        reg_time = (watch_time_saved[2]*10) + watch_time_saved[3];           // reg_time = ultimo valor de minutos mostrados por display antes de entrar en configuracion
+                        setting_up_flag=true;                                                // entra en modo configuración
+                        state = set_up_minute;                                               // configurar minutos 
+                    }
+                    if(testing_buttons[4]==1) if(button_test(board->Aceptar,DEBOUNCE_TIME,ACEPTAR_)){   
+                        SetUpTime(watch,watch_time,sizeof(watch_time));
+                        state = show_watch_time;
+                        setting_up_flag=false; 
+                        EnableAlarm(watch, true);                   
+                    }
 
-            if(inc_time){
-                inc_time=false;
-                blink_display(DOT_1_ON);    
-                if(F1_pressed_3s()) state = init;
-            } 
+                break;
 
-            break;
+            case set_up_minute:
 
-        case show_watch_time:
+                    decimal_to_seg(count_status,MINUTES_SELECTED);                                  // redefine valores de display en base a cambios en reg_time si es que los hubo                    
+                    blink_display(DOT_0_ON,MINUTES_OFF,BLINK_TIME_PERIOD);                          // borra y escribe watch time new
 
-            break;
+                    if(testing_buttons[4]==1) if(button_test(board->Aceptar,DEBOUNCE_TIME,ACEPTAR_)){
+                        reg_time = (watch_time_saved[0]*10) + watch_time_saved[1];
+                        setting_up_flag=true;
+                        state = set_up_hour;  
+                    }
+                    if(testing_buttons[5]==1) if(button_test(board->Cancelar,DEBOUNCE_TIME,CANCELAR_)){
+                        state = show_watch_time;
+                        setting_up_flag=false;
+                    } 
+                    if(testing_buttons[3]==1) if(button_test(board->F4,DEBOUNCE_TIME,F4_)) count_status=INC_COUNT;
+                    if(testing_buttons[2]==1) if(button_test(board->F3,DEBOUNCE_TIME,F3_)) count_status=DEC_COUNT;  
+                    if(wdt) {               
+                        state = show_watch_time;
+                        setting_up_flag=false;
+                        wdt=false;
+                        time=0;                                              
+                    }
 
-        case set_up_alarm_hour:
+                break;
 
-            break;
+            case set_up_hour:
 
-        case set_up_alarm_minute:
-        
-            break;
+                    decimal_to_seg(count_status,HOURS_SELECTED);
+                    blink_display(DOT_2_ON,HOURS_OFF,BLINK_TIME_PERIOD); 
+                    
+                    if(testing_buttons[4]==1) if(button_test(board->Aceptar,DEBOUNCE_TIME,ACEPTAR_)){
+                        SetUpTime(watch,watch_time_saved,sizeof(watch_time_saved));
+                        state = show_watch_time;
+                        setting_up_flag=false;
+                    }
+                    if(testing_buttons[5]==1) if(button_test(board->Cancelar,DEBOUNCE_TIME,CANCELAR_)){
+                        state = show_watch_time;
+                        setting_up_flag=false;                        
+                    }
+                    if(testing_buttons[3]==1) if(button_test(board->F4,DEBOUNCE_TIME,F4_)) count_status=INC_COUNT;
+                    if(testing_buttons[2]==1) if(button_test(board->F3,DEBOUNCE_TIME,F3_)) count_status=DEC_COUNT;
+                    if(wdt) {               
+                        state = show_watch_time;
+                        setting_up_flag=false;
+                        wdt=false;
+                        time=0;                                              
+                    }
 
-        default:
-            break;
+                break;
+
+            case show_watch_time:
+
+                    blink_display(DOT_2_ON,All_DISPLAY_ON,BLINK_TIME_PERIOD); 
+
+                    if(testing_buttons[0]==1) if(button_test(board->F1,F1_TIMER,F1_)) {
+                        GetTime(watch,watch_time_new,sizeof(watch_time_new));
+                        copy_paste_watch_time(true);
+                        reg_time = (watch_time_new[2]*10) + watch_time_new[3];
+                        state = set_up_minute; 
+                        setting_up_flag=true;
+                    }
+
+                    if(testing_buttons[1]==1) if(button_test(board->F2,F1_TIMER,F2_)) {               
+                        GetAlarmTime(watch,watch_time_new,sizeof(watch_time_new));
+                        copy_paste_watch_time(true);
+                        reg_time = (watch_time_new[2]*10) + watch_time_new[3];           
+                        setting_up_flag=true;                   
+                        state = set_up_alarm_minute;                            
+                    }
+
+                    if(testing_buttons[4]==1) if(button_test(board->Aceptar,DEBOUNCE_TIME,ACEPTAR_)){ 
+
+                        if (AlarmRinging(watch))    SnoozeAlarm(watch,5);
+                        else                        EnableAlarm(watch, true);      
+
+                    }
+
+                    if(testing_buttons[5]==1) if(button_test(board->Cancelar,DEBOUNCE_TIME,CANCELAR_)){ 
+
+                        if (!AlarmRinging(watch))    EnableAlarm(watch, false); 
+                        SnoozeAlarm_24hs(watch);                   
+                    
+                    }
+
+                break;
+
+            case set_up_alarm_minute:
+
+                    decimal_to_seg(count_status,MINUTES_SELECTED);                                                     
+                    blink_display(ALL_DOT_ON,MINUTES_OFF,BLINK_TIME_PERIOD);                  
+
+                    if(testing_buttons[4]==1) if(button_test(board->Aceptar,DEBOUNCE_TIME,ACEPTAR_)){
+                        reg_time = (watch_time_saved[0]*10) + watch_time_saved[1];
+                        setting_up_flag=true;
+                        state = set_up_alarm_hour;  
+                    }
+                    if(testing_buttons[5]==1) if(button_test(board->Cancelar,DEBOUNCE_TIME,CANCELAR_)){
+                        state = show_watch_time;
+                        setting_up_flag=false;
+                    } 
+                    if(testing_buttons[3]==1) if(button_test(board->F4,DEBOUNCE_TIME,F4_)) count_status=INC_COUNT;
+                    if(testing_buttons[2]==1) if(button_test(board->F3,DEBOUNCE_TIME,F3_)) count_status=DEC_COUNT;  
+                    if(wdt) {               
+                        state = show_watch_time;
+                        setting_up_flag=false;
+                        wdt=false;
+                        time=0;                                              
+                    }
+
+                break;
+
+            case set_up_alarm_hour:
+
+                    decimal_to_seg(count_status,HOURS_SELECTED);
+                    blink_display(ALL_DOT_ON,HOURS_OFF,BLINK_TIME_PERIOD); 
+                    
+                    if(testing_buttons[4l]==1) if(button_test(board->Aceptar,DEBOUNCE_TIME,ACEPTAR_)){
+                        SetUpAlarm(watch,watch_time_saved,sizeof(watch_time_saved));
+                        GetAlarmTime(watch,watch_time_alarm,sizeof(watch_time_alarm));
+                        state = show_watch_time;
+                        setting_up_flag=false;
+                    }
+                    if(testing_buttons[5]==1) if(button_test(board->Cancelar,DEBOUNCE_TIME,CANCELAR_)){
+                        state = show_watch_time;
+                        setting_up_flag=false;                        
+                    }
+                    if(testing_buttons[3]==1) if(button_test(board->F4,DEBOUNCE_TIME,F4_)) count_status=INC_COUNT;
+                    if(testing_buttons[2]==1) if(button_test(board->F3,DEBOUNCE_TIME,F3_)) count_status=DEC_COUNT;
+                    if(wdt) {               
+                        state = show_watch_time;
+                        setting_up_flag=false;
+                        wdt=false;
+                        time=0;                                              
+                    }
+
+                break;
+
+            default:
+                break;
+            }
         }
 
     }
 }
 
-
-
-
-
-
+//---------------------------------------------Rutina de interrupción-------------------------------------------//
 
 void SysTick_Handler(void){
 
     inc_time=true;
 
-    if(time<30000) time++;
-    else time=0;
- 
-    DisplayWriteBCD(board->display,(uint8_t[]){watch_time[3],watch_time[2],watch_time[1],watch_time[0]},4,dot);
-    DisplayRefresh(board->display);   
+    if(time<30000)  time++; //30000 -> 30 segundos
+    if(time>=30000) {       
+        time=0;
+        wdt=true;           //watch dog timer
+    }
+    
+    if(setting_up_flag){    //rutina en caso de estar en estado de configuracion
+        DisplayWriteBCD(board->display,(uint8_t[]){watch_time_new[3],watch_time_new[2],watch_time_new[1],watch_time_new[0]},4,dot);
+        copy_paste_watch_time(false);   //se recupera el tiempo guardado antes de ser borrado
+    }
+    else{                   //rutina en caso de estar en estado de muestra de tiempo
+        DisplayWriteBCD(board->display,(uint8_t[]){watch_time[3],watch_time[2],watch_time[1],watch_time[0]},4,dot); 
+        GetTime(watch,watch_time,sizeof(watch_time));
+    }
     RefreshTime(watch);
+    DisplayRefresh(board->display); 
+
 }
 
+//----------------------------------------------Mis Funciones----------------------------------------------------//
 
-
-
-void blink_display(uint8_t _dot){
+void blink_display(uint8_t _dot, uint8_t displays_off, unsigned int blink_timer_f){
 
     if(blink_timer>0) blink_timer--;
-    else blink_timer = BLINK_TIME_PERIOD;
+    else blink_timer = blink_timer_f;  
 
-    if(blink_timer>=BLINK_TIME_PERIOD/2){ 
-        GetTime(watch,watch_time,sizeof(watch_time)); 
-        dot=_dot;
-    }else{  
-        for(int i=0; i<4; i++)
-            watch_time[i] = ONE_DISPLAY_OFF;
-        dot=ALL_DOT_OFF;
+    if(blink_timer>=blink_timer_f/2){    
+        if(AlarmStatus(watch) && (state!=set_up_alarm_minute) && (state!=set_up_alarm_hour)) dot = DOT_0Y2_ON; //en caso que la alarma este activada 
+        else dot=_dot;
+    }
+    else{
+        
+        copy_paste_watch_time(true);         //se guarda valor de tiempo antes de ser borrado
+
+        if(displays_off == ALL_DISPLAY_OFF) for(int i=0; i<4; i++)  {
+            if(setting_up_flag)watch_time_new[i] = ONE_DISPLAY_OFF;
+        }
+        if(displays_off == HOURS_OFF) {
+            if(setting_up_flag)watch_time_new[0] = ONE_DISPLAY_OFF;
+            if(setting_up_flag)watch_time_new[1] = ONE_DISPLAY_OFF;
+        }
+        if(displays_off == MINUTES_OFF) {
+            if(setting_up_flag)watch_time_new[2] = ONE_DISPLAY_OFF;
+            if(setting_up_flag)watch_time_new[3] = ONE_DISPLAY_OFF;
+        } 
+
+        if(AlarmStatus(watch) && (state==show_watch_time))
+            dot = DOT_0_ON;    
+        else
+            dot= ALL_DOT_OFF;
     }
 
 }
 
-bool F1_pressed_3s (void){
+void decimal_to_seg (int count_state, int display_select){
+    
+    uint8_t max = 59;
+    uint8_t display1 = 3;                       
+    uint8_t display2 = 2;
 
-    bool flag=false;
+    if(display_select==MINUTES_SELECTED){       
+        max=59;
+        display1=3;                             //unidad minutos
+        display2=2;                             //decena minutos
+    }
+    if(display_select==HOURS_SELECTED){
+        max=23;
+        display1=1;                             //unidad hora
+        display2=0;                             //decena hora
+    }
 
-    if(DigitalInputState(board->F1)) pressed_timer--;
-    else pressed_timer = F1_TIMER;
+    if(count_state==INC_COUNT) reg_time++;      //suma registro de configuracion de nuevo tiempo 
+    if(count_state==DEC_COUNT) reg_time--;      //resta registro de configuracion de nuevo tiempo 
 
-    if(pressed_timer==0)     flag=true;
-    else                    flag=false;
+    if(reg_time<0)reg_time=max;                 //control de cuenta
+    if(reg_time>max) reg_time=0;
+    watch_time_new[display1]=reg_time%10;                               //unidades al display correspondiente
+    watch_time_new[display2]=(reg_time - watch_time_new[display1])/10;  //decenas al display correspondiente
+    count_status=0;                                                     //se reinicia registro de control de cuenta
+
+}
+
+bool button_test (digital_input_t button , unsigned int timer, unsigned int button_test){
+
+    bool flag=false;                                                    //bandera de retorno
+ 
+    if(DigitalInputState(button)){                                      //se testea pulsador
+        if(new_button_tested){                                          //se verifica si se esta testeando un nuevo pulsador o sigue en testeo algun pulsador en particular
+            for(int index=0; index<6; index++){                         
+                if(button_test==index)   testing_buttons[index]=1;      //1 en la posicion del array que corresponde al pulsador que se encuentra testeando
+                else                     testing_buttons[index]=0;      //0 para los demás
+            }
+            pressed_timer = timer;                                      //se define tiempo de testeo
+            new_button_tested=false;                                    //bandera que indica que se encuentra testeando un pulsador en particular 
+        }
+        pressed_timer--;                                                //descuento de registro de tiempo
+    }
+    else{
+        pressed_timer = timer;                                          //no se detecto pulsacion alguna
+        new_button_tested=true;                                         //bandera que indica que se definira nuevo pulsador a testear
+        for(int index=0; index<6; index++)  testing_buttons[index]=1;   //todos los pulsadores disponibles para ser testeados
+    }  
+
+    if(pressed_timer==0){                                               //se completo el tiempo de testeo
+        flag=true;                                                      
+        pressed_timer = timer; 
+        for(int index=0; index<6; index++)  testing_buttons[index]=1;
+        wdt=false;                                                      //desactivar watch dog timer
+        time=0;                                                            
+    }
+    else    flag=false;
 
     return flag; 
 
 }
 
-/*
-    static unsigned int temporizador=0;
-    static unsigned int delay;
-    static unsigned int caso=0;
-    static signed int variable_general=0;
-    bool botonF4_presionado=false;
-    bool botonF3_presionado=false;
-    bool botonAceptar_presionado=false;
-    bool botonCancelar_presionado=false;
-    
+void copy_paste_watch_time (bool copy_paste){
 
-    switch (estado)
-    {
-
-    case inicio:
-        variable_general=0;
-
-        break;
-
-    case ajuste_minutos:
-        temporizador++;
-        if(temporizador<1000){
-        DisplayWriteBCD(board->display,(uint8_t[]){SEG_OFF,SEG_OFF,hora[1],hora[0]},4,PUNTOS_OFF);  
+    if(copy_paste){                                                 //watch_time_saved = watch_time_new
+        for(int index=0;index<sizeof(watch_time_saved);index++){
+            watch_time_saved[index] = watch_time_new[index];
         }
-        else{
-        DisplayWriteBCD(board->display,(uint8_t[]){hora[3],hora[2],hora[1],hora[0]},4,PUNTOS_OFF);
+    }
+    if(!copy_paste){                                                //watch_time_new = watch_time_saved
+        for(int index=0;index<sizeof(watch_time_new);index++){
+            watch_time_new[index] = watch_time_saved[index];
         }
-        if (temporizador>=2000) temporizador=0;
-
-
-        if(DigitalInputState(board->F4))botonF4_presionado=true;
-        if(botonF4_presionado){
-            delay++;
-            if(delay>=150){
-                delay=0;
-                botonF4_presionado=false;
-                variable_general++;
-            }
-        }
-
-        if(DigitalInputState(board->F3))botonF3_presionado=true;
-        if(botonF3_presionado){
-            delay++;
-            if(delay>=150){
-                delay=0;
-                botonF3_presionado=false;
-                variable_general--;   
-            }
-        }
-        if(variable_general<0)variable_general=59;
-        if(variable_general>59) variable_general=0;
-        hora[3]=variable_general%10;
-        hora[2]=(variable_general-hora[3])/10;
-
-        if(DigitalInputState(board->Aceptar)){
-            variable_general=0;
-            delay=0;
-            estado=ajuste_horas;
-            GetTime(reloj,alarma,6);
-            variable_general=alarma[0]*10+alarma[1];
-        }
-        if(
-            DigitalInputState(board->Aceptar)||
-            DigitalInputState(board->F1)||
-            DigitalInputState(board->F2)||
-            DigitalInputState(board->F3)||
-            DigitalInputState(board->F4)
-            ) tiempo=0;
-
-        tiempo++;
-        if (tiempo>30000) {
-            estado=caso;
-            tiempo=0;
-        }
-        if(DigitalInputState(board->Cancelar)) estado=caso;
-
-
-    break;
-
-    case ajuste_horas:
-        temporizador++;
-        if(temporizador<1000){
-        DisplayWriteBCD(board->display,(uint8_t[]){hora[3],hora[2],hora[1],hora[0]},4,PUNTOS_OFF);  
-        }
-        else{
-        DisplayWriteBCD(board->display,(uint8_t[]){hora[3],hora[2],SEG_OFF,SEG_OFF},4,PUNTOS_OFF);
-        }
-        if (temporizador>=2000) temporizador=0;
-
-
-        if(DigitalInputState(board->F4))botonF4_presionado=true;
-        if(botonF4_presionado){
-            delay++;
-            if(delay>=150){
-                delay=0;
-                botonF4_presionado=false;
-                variable_general++;
-            }
-        }
-
-        if(DigitalInputState(board->F3))botonF3_presionado=true;
-        if(botonF3_presionado){
-            delay++;
-            if(delay>=150){
-                delay=0;
-                botonF3_presionado=false;
-                variable_general--;   
-            }
-        }
-        if(variable_general<0)variable_general=23;
-        if(variable_general>23) variable_general=0;
-        hora[1]=variable_general%10;
-        hora[0]=(variable_general-hora[1])/10;
-
-        if(
-            DigitalInputState(board->Aceptar)||
-            DigitalInputState(board->F1)||
-            DigitalInputState(board->F2)||
-            DigitalInputState(board->F3)||
-            DigitalInputState(board->F4)
-            ) tiempo=0;
-
-        tiempo++;
-        if (tiempo>30000) {
-            estado=caso;
-            tiempo=0;
-        }
-        if(DigitalInputState(board->Cancelar)) estado=caso;
-
-
-        if(DigitalInputState(board->Aceptar))botonAceptar_presionado=true;
-        if(botonAceptar_presionado){
-            delay++;
-            if(delay>=300){
-                delay=0;
-                botonAceptar_presionado=false;
-                if(DigitalInputState(board->Aceptar)){
-                     SetUpTime(reloj,hora,4);
-                     estado=mostrar_hora;  
-                     EnableAlarm(reloj,false);              
-                }
-            }
-        }
-
-    break;
-
-
-    case mostrar_hora:
-        caso=mostrar_hora;
-        variable_general=0;
-        GetTime(reloj, hora, 6);
-
-        temporizador++;
-
-        /*
-        if(AlarmStatus(reloj))variable_general=5;
-        else {variable_general=2;
-            SnoozeAlarmDia(reloj);
-        }
-        //
-
-        if(temporizador<1000){
-        DisplayWriteBCD(board->display,(uint8_t[]){hora[3],hora[2],hora[1],hora[0]},4,variable_general);  
-        }
-        else{
-        DisplayWriteBCD(board->display,(uint8_t[]){hora[3],hora[2],hora[1],hora[0]},4,PUNTOS_OFF);
-        }
-        if (temporizador>=2000) temporizador=0;
-
-        if(DigitalInputState(board->F1)) tiempo++;
-        else tiempo=0;
-        if(tiempo>=3000) {
-            estado=ajuste_minutos;
-            tiempo=0;
-            GetTime(reloj,hora,6);
-            variable_general=hora[2]*10+hora[3];
-        }
-
-        if(DigitalInputState(board->F2)) tiempo1++;
-        else tiempo1=0;
-        if(tiempo1>=3000) {
-            estado=configurar_alarma_minutos;
-            GetAlarmTime(reloj,hora,6);
-            variable_general=hora[2]*10+hora[3];
-            tiempo1=0;
-        }
-
-        if(AlarmRinging(reloj)){
-            DigitalOutPutActivate(board->led_amarillo);
-            /*
-            if(DigitalInputState(board->Cancelar)){
-                DigitalOutPutDesactivate(board->led_amarillo);
-                SnoozeAlarmDia(reloj);
-                while(DigitalInputState(board->Cancelar))__asm("NOP");
-            } 
-            //
-            if(DigitalInputState(board->Aceptar)){
-                DigitalOutPutDesactivate(board->led_amarillo);
-                SnoozeAlarm(reloj,10);
-            } 
-        }
-
-        if(DigitalInputState(board->Aceptar)){
-            EnableAlarm(reloj,true);
-        }
-
-        if(DigitalInputState(board->Cancelar))botonCancelar_presionado=true;
-            if(botonCancelar_presionado){
-                delay++;
-                if(delay>=300){
-                    delay=0;
-                    botonCancelar_presionado=false;
-                    if(DigitalInputState(board->Cancelar)){
-                        EnableAlarm(reloj,false);              
-                    }
-            }
-        }
-     
-
-    break;
-
-    case configurar_alarma_minutos:
-
-        temporizador++;
-        if(temporizador<1000){
-        DisplayWriteBCD(board->display,(uint8_t[]){SEG_OFF,SEG_OFF,hora[1],hora[0]},4,PUNTOS_ON);  
-        }
-        else{
-        DisplayWriteBCD(board->display,(uint8_t[]){hora[3],hora[2],hora[1],hora[0]},4,PUNTOS_ON);
-        }
-        if (temporizador>=2000) temporizador=0;
-
-
-        if(DigitalInputState(board->F4))botonF4_presionado=true;
-        if(botonF4_presionado){
-            delay++;
-            if(delay>=150){
-                delay=0;
-                botonF4_presionado=false;
-                variable_general++;
-            }
-        }
-
-        if(DigitalInputState(board->F3))botonF3_presionado=true;
-        if(botonF3_presionado){
-            delay++;
-            if(delay>=150){
-                delay=0;
-                botonF3_presionado=false;
-                variable_general--;   
-            }
-        }
-        if(variable_general<0)variable_general=59;
-        if(variable_general>59) variable_general=0;
-        hora[3]=variable_general%10;
-        hora[2]=(variable_general-hora[3])/10;
-
-        if(DigitalInputState(board->Aceptar)){
-            variable_general=0;
-            delay=0;
-            estado=configurar_alarma_horas;
-            variable_general=hora[0]*10+hora[1];
-        }
-        if(
-            DigitalInputState(board->Aceptar)||
-            DigitalInputState(board->F1)||
-            DigitalInputState(board->F2)||
-            DigitalInputState(board->F3)||
-            DigitalInputState(board->F4)
-            ) tiempo=0;
-
-        tiempo++;
-        if (tiempo>30000) {
-            estado=caso;
-            tiempo=0;
-        }
-        if(DigitalInputState(board->Cancelar)) estado=caso;
-
-    break;
-
-    case configurar_alarma_horas:
-        temporizador++;
-        if(temporizador<1000){
-        DisplayWriteBCD(board->display,(uint8_t[]){hora[3],hora[2],hora[1],hora[0]},4,PUNTOS_ON);  
-        }
-        else{
-        DisplayWriteBCD(board->display,(uint8_t[]){hora[3],hora[2],SEG_OFF,SEG_OFF},4,PUNTOS_ON);
-        }
-        if (temporizador>=2000) temporizador=0;
-
-
-        if(DigitalInputState(board->F4))botonF4_presionado=true;
-        if(botonF4_presionado){
-            delay++;
-            if(delay>=150){
-                delay=0;
-                botonF4_presionado=false;
-                variable_general++;
-            }
-        }
-
-        if(DigitalInputState(board->F3))botonF3_presionado=true;
-        if(botonF3_presionado){
-            delay++;
-            if(delay>=150){
-                delay=0;
-                botonF3_presionado=false;
-                variable_general--;   
-            }
-        }
-        if(variable_general<0)variable_general=23;
-        if(variable_general>23) variable_general=0;
-        hora[1]=variable_general%10;
-        hora[0]=(variable_general-hora[1])/10;
-
-        if(
-            DigitalInputState(board->Aceptar)||
-            DigitalInputState(board->F1)||
-            DigitalInputState(board->F2)||
-            DigitalInputState(board->F3)||
-            DigitalInputState(board->F4)
-            ) tiempo=0;
-
-        tiempo++;
-        if (tiempo>30000) {
-            estado=caso;
-            tiempo=0;
-        }
-        if(DigitalInputState(board->Cancelar)) estado=caso;
-
-
-        if(DigitalInputState(board->Aceptar))botonAceptar_presionado=true;
-        if(botonAceptar_presionado){
-            delay++;
-            if(delay>=300){
-                delay=0;
-                botonAceptar_presionado=false;
-                if(DigitalInputState(board->Aceptar)){
-                     SetUpAlarm(reloj,hora,6);
-                     estado=caso;                
-                }
-            }
-        }
-
-    break;
-
-
-    default:
-        break;
     }
 
-    
-    DisplayRefresh(board->display);
-
 }
-*/
 
 /* === End of documentation ==================================================================== */
 

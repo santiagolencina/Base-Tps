@@ -149,6 +149,11 @@ bool SnoozeAlarm(my_watch_t my_watch, uint8_t no_active){
     return my_watch->snooze_time;    
 }
 
+bool SnoozeAlarm_24hs(my_watch_t my_watch){
+    my_watch->alarm_is_activated = false;
+    return my_watch->alarm_is_activated;    
+}
+
 bool AlarmRinging(my_watch_t my_watch) {
     uint8_t time[6];
     uint8_t alarm[6];
@@ -160,7 +165,7 @@ bool AlarmRinging(my_watch_t my_watch) {
         my_watch->alarm_is_activated = true;
     }
 
-    return ((my_watch->alarm_is_activated) && (!my_watch->snooze_time)&&(my_watch->alarm_is_on));
+    return ((my_watch->alarm_is_activated) && (!my_watch->snooze_time) && (my_watch->alarm_is_on));
 }
 
 //--------------------------------------------------------------------------------//
@@ -176,34 +181,34 @@ bool is_time_ok(const uint8_t * time){
 
 void repeat_sec(uint8_t * current_time, my_watch_t my_watch) {
 
-    current_time[5]++;
+    current_time[5]++;      //00:00:0-
                              
-    if (current_time[5]>9){
+    if (current_time[5]>9){ //00:00:-0
         current_time[5]=0;
         current_time[4]++;
     }
-    if (current_time[4]>5){
+    if (current_time[4]>5){ //00:0-:00
         current_time[4]=0;
         current_time[3]++;
+        if (my_watch->snooze_time > 0) {
+            my_watch->snooze_time--;
+        } 
     }
-    if (current_time[3]>9){
+    if (current_time[3]>9){ //00:-0:00
         current_time[3]=0;
         current_time[2]++;
     }
-    if (current_time[2]>5){
+    if (current_time[2]>5){ //0-:00:00
         current_time[2]=0;
         current_time[1]++;
     }
-    if (current_time[1]>9){
+    if (current_time[1]>9){ //-0:00:00
         current_time[1]=0;
         current_time[0]++;
     }
-    if ((current_time[0]>=2)&&(current_time[1]>=4)){
+    if ((current_time[0]>=2)&&(current_time[1]>=4)){ 
         current_time[0]=0;
         current_time[1]=0;
-    }
-    if (my_watch->snooze_time > 0) {
-        my_watch->snooze_time--;
     }
     
 }
